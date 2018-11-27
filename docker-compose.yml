@@ -1,0 +1,64 @@
+version: '2'
+services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    container_name: Zookeeper
+    ports:
+      - "2181:2181"
+  kafka:
+    image: wurstmeister/kafka
+    container_name: Kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: "kafka"
+      KAFKA_ADVERTISED_PORT: "9092"
+      KAFKA_CREATE_TOPICS: "test:1:1"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  kafka-manager:
+    image: sheepkiller/kafka-manager
+    container_name: Kafka-Manager
+    depends_on:
+      - zookeeper
+      - kafka
+    ports:
+      - "9000:9000"
+    environment:
+      ZK_HOSTS: zookeeper:2181
+  producer-dotnet:
+    build: Producer.NetCore/
+    container_name: Producer.dotNet
+    depends_on:
+      - zookeeper
+      - kafka
+  consumer-dotnet:
+    build: Consumer.NetCore/
+    container_name: Consumer.dotNet
+    depends_on:
+      - zookeeper
+      - kafka
+  producer-rails:
+    build: Producer.Rails/
+    container_name: Producer.Rails
+    ports:
+      - "3000:3000"
+    depends_on:
+      - zookeeper
+      - kafka
+    volumes:
+      - "./Producer.Rails:/Producer.Rails"
+  consumer-rails:
+    build: Consumer.Ruby/
+    container_name: Consumer.Rails
+    volumes:
+      - "./Consumer.Ruby:/app"
+    depends_on:
+      - producer-dotnet
+    command: ["sh", "-c", "sleep 20 && ruby consumer.rb"]
+  consumer:
+    image: wurstmeister/kafka
+    depends_on:
+      - kafka
+    command: [ "sh", "-c", "sleep 10 && $$KAFKA_HOME/bin/kafka-console-consumer.sh --topic=test --zookeeper=zookeeper:2181" ]
